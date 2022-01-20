@@ -7,6 +7,7 @@
 package org.mozilla.javascript;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -254,33 +255,36 @@ final class EqualObjectGraphs  {
     // Sort IDs deterministically
     private static Object[] getSortedIds(final Scriptable s) {
         final Object[] ids = getIds(s);
-        Arrays.sort(ids, (a, b) -> {
-            if (a instanceof Integer) {
-                if (b instanceof Integer) {
-                    return ((Integer)a).compareTo((Integer)b);
-                } else if (b instanceof String || b instanceof Symbol) {
-                    return -1; // ints before strings or symbols
+        Arrays.sort(ids, new Comparator<Object>() {
+            @Override
+            public int compare(Object a, Object b) {
+                if (a instanceof Integer) {
+                    if (b instanceof Integer) {
+                        return ((Integer)a).compareTo((Integer)b);
+                    } else if (b instanceof String || b instanceof Symbol) {
+                        return -1; // ints before strings or symbols
+                    }
+                } else if (a instanceof String) {
+                    if (b instanceof String) {
+                        return ((String)a).compareTo((String)b);
+                    } else if (b instanceof Integer) {
+                        return 1; // strings after ints
+                    } else if (b instanceof Symbol) {
+                        return -1; // strings before symbols
+                    }
+                } else if (a instanceof Symbol) {
+                    if (b instanceof Symbol) {
+                        // As long as people bother to reasonably name their symbols,
+                        // this will work. If there's clashes in symbol names (e.g.
+                        // lots of unnamed symbols) it can lead to false inequalities.
+                        return getSymbolName((Symbol)a).compareTo(getSymbolName((Symbol)b));
+                    } else if (b instanceof Integer || b instanceof String) {
+                        return 1; // symbols after ints and strings
+                    }
                 }
-            } else if (a instanceof String) {
-                if (b instanceof String) {
-                    return ((String)a).compareTo((String)b);
-                } else if (b instanceof Integer) {
-                    return 1; // strings after ints
-                } else if (b instanceof Symbol) {
-                    return -1; // strings before symbols
-                }
-            } else if (a instanceof Symbol) {
-                if (b instanceof Symbol) {
-                    // As long as people bother to reasonably name their symbols,
-                    // this will work. If there's clashes in symbol names (e.g.
-                    // lots of unnamed symbols) it can lead to false inequalities.
-                    return getSymbolName((Symbol)a).compareTo(getSymbolName((Symbol)b));
-                } else if (b instanceof Integer || b instanceof String) {
-                    return 1; // symbols after ints and strings
-                }
+                // We can only compare Rhino key types: Integer, String, Symbol
+                throw new ClassCastException();
             }
-            // We can only compare Rhino key types: Integer, String, Symbol
-            throw new ClassCastException();
         });
         return ids;
     }

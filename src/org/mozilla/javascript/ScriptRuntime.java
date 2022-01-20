@@ -3032,7 +3032,8 @@ public class ScriptRuntime {
             }
 
             try {
-                int intVal2 = ((BigInteger) val2).intValueExact();
+                // FIXME out range check
+                int intVal2 = ((BigInteger) val2).intValue();
                 return ((BigInteger) val1).pow(intVal2);
             } catch (ArithmeticException e) {
                 // This is outside the scope of the ECMA262 specification.
@@ -3081,7 +3082,7 @@ public class ScriptRuntime {
     public static Number leftShift(Number val1, Number val2) {
         if (val1 instanceof BigInteger && val2 instanceof BigInteger) {
             try {
-                int intVal2 = ((BigInteger) val2).intValueExact();
+                int intVal2 = ((BigInteger) val2).intValue();
                 return ((BigInteger) val1).shiftLeft(intVal2);
             } catch (ArithmeticException e) {
                 // This is outside the scope of the ECMA262 specification.
@@ -3098,7 +3099,7 @@ public class ScriptRuntime {
     public static Number signedRightShift(Number val1, Number val2) {
         if (val1 instanceof BigInteger && val2 instanceof BigInteger) {
             try {
-                int intVal2 = ((BigInteger) val2).intValueExact();
+                int intVal2 = ((BigInteger) val2).intValue();
                 return ((BigInteger) val1).shiftRight(intVal2);
             } catch (ArithmeticException e) {
                 // This is outside the scope of the ECMA262 specification.

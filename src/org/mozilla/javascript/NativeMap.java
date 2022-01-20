@@ -7,6 +7,7 @@
 package org.mozilla.javascript;
 
 import java.util.Iterator;
+import java.util.function.BiConsumer;
 
 public class NativeMap extends IdScriptableObject {
     private static final long serialVersionUID = 1171922614280016891L;
@@ -155,7 +156,7 @@ public class NativeMap extends IdScriptableObject {
      * If an "iterable" object was passed to the constructor, there are many many things to do...
      * Make this static because NativeWeakMap has the exact same requirement.
      */
-    static void loadFromIterable(Context cx, Scriptable scope, ScriptableObject map, Object arg1) {
+    static void loadFromIterable(final Context cx, final Scriptable scope, final ScriptableObject map, Object arg1) {
         if ((arg1 == null) || Undefined.instance.equals(arg1)) {
             return;
         }
@@ -178,9 +179,13 @@ public class NativeMap extends IdScriptableObject {
                 cx,
                 scope,
                 arg1,
-                (key, value) -> {
-                    set.call(cx, scope, map, new Object[] {key, value});
-                });
+                new BiConsumer<Object, Object>() {
+                    @Override
+                    public void accept(Object key, Object value) {
+                        set.call(cx, scope, map, new Object[] {key, value});
+                    }
+                }
+        );
     }
 
     private static NativeMap realThis(Scriptable thisObj, IdFunctionObject f) {

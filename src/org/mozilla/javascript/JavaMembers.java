@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.lang.model.SourceVersion;
 
 /**
  * @author Mike Shaver
@@ -33,8 +32,7 @@ import javax.lang.model.SourceVersion;
  */
 class JavaMembers {
 
-    private static final boolean STRICT_REFLECTIVE_ACCESS =
-            SourceVersion.latestSupported().ordinal() > 8;
+    private static final boolean STRICT_REFLECTIVE_ACCESS = false;
 
     private static final Permission allPermission = new AllPermission();
 
@@ -379,7 +377,10 @@ class JavaMembers {
     static void registerMethod(Map<MethodSignature, Method> map, Method method) {
         MethodSignature sig = new MethodSignature(method);
         // Array may contain methods with same signature but different return value!
-        map.putIfAbsent(sig, method);
+        Method oldValue = map.get(sig);
+        if (oldValue == null) {
+            map.put(sig, method);
+        }
     }
 
     static final class MethodSignature {

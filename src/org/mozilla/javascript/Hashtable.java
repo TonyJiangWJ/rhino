@@ -121,7 +121,7 @@ public class Hashtable implements Serializable, Iterable<Hashtable.Entry> {
 
     public void put(Object key, Object value) {
         final Entry nv = new Entry(key, value);
-        final Entry ev = map.putIfAbsent(nv, nv);
+        final Entry ev = putIfAbsent(nv, nv);
         if (ev == null) {
             // New value -- insert to end of doubly-linked list
             if (first == null) {
@@ -135,6 +135,14 @@ public class Hashtable implements Serializable, Iterable<Hashtable.Entry> {
             // Update the existing value and keep it in the same place in the list
             ev.value = value;
         }
+    }
+
+    private Entry putIfAbsent(Entry key, Entry value) {
+        Entry v = map.get(key);
+        if (v == null) {
+            v = map.put(key, value);
+        }
+        return v;
     }
 
     /**
@@ -255,8 +263,9 @@ public class Hashtable implements Serializable, Iterable<Hashtable.Entry> {
 
     public void clear() {
         // Zero out all the entries so that existing iterators will skip them all
-        Iterator<Entry> it = iterator();
-        it.forEachRemaining(Entry::clear);
+        for (Entry entry : this) {
+            entry.clear();
+        }
 
         // Replace the existing list with a dummy, and make it the last node
         // of the current list. If new nodes are added now, existing iterators
@@ -312,6 +321,11 @@ public class Hashtable implements Serializable, Iterable<Hashtable.Entry> {
             final Entry e = pos.next;
             pos = pos.next;
             return e;
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("remove");
         }
     }
 }

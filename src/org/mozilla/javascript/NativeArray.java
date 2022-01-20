@@ -2348,7 +2348,7 @@ public class NativeArray extends IdScriptableObject implements List {
     }
 
     @Override
-    public List subList(int fromIndex, int toIndex) {
+    public List subList(final int fromIndex, final int toIndex) {
         if (fromIndex < 0) throw new IndexOutOfBoundsException("fromIndex = " + fromIndex);
         if (toIndex > size()) throw new IndexOutOfBoundsException("toIndex = " + toIndex);
         if (fromIndex > toIndex)

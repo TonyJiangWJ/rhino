@@ -6,6 +6,8 @@
 
 package org.mozilla.javascript;
 
+import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
+
 import java.util.AbstractCollection;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -15,7 +17,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import org.mozilla.javascript.ScriptRuntime.StringIdOrIndex;
+import java.util.function.BiConsumer;
 
 /**
  * This class implements the Object native object. See ECMA 15.2.
@@ -430,19 +432,22 @@ public class NativeObject extends IdScriptableObject implements Map {
                 {
                     Object arg = args.length < 1 ? Undefined.instance : args[0];
                     arg = getCompatibleObject(cx, scope, arg);
-                    Scriptable obj = cx.newObject(scope);
+                    final Scriptable obj = cx.newObject(scope);
                     ScriptRuntime.loadFromIterable(
                             cx,
                             scope,
                             arg,
-                            (key, value) -> {
-                                if (key instanceof Integer) {
-                                    obj.put((Integer) key, obj, value);
-                                } else if (key instanceof Symbol
-                                        && obj instanceof SymbolScriptable) {
-                                    ((SymbolScriptable) obj).put((Symbol) key, obj, value);
-                                } else {
-                                    obj.put(ScriptRuntime.toString(key), obj, value);
+                            new BiConsumer<Object, Object>() {
+                                @Override
+                                public void accept(Object key, Object value) {
+                                    if (key instanceof Integer) {
+                                        obj.put((Integer)key, obj, value);
+                                    } else if (key instanceof Symbol
+                                            && obj instanceof SymbolScriptable) {
+                                        ((SymbolScriptable)obj).put((Symbol)key, obj, value);
+                                    } else {
+                                        obj.put(ScriptRuntime.toString(key), obj, value);
+                                    }
                                 }
                             });
                     return obj;

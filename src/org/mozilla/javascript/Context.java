@@ -344,7 +344,7 @@ public class Context implements Closeable {
     public static final String errorReporterProperty = "error reporter";
 
     /** Convenient value to use as zero-length array of objects. */
-    public static final Object[] emptyArgs = ScriptRuntime.emptyArgs;
+    public static final Object[] emptyArgs = new Object[0];
 
     /**
      * Creates a new Context. The context will be associated with the {@link
@@ -525,7 +525,12 @@ public class Context implements Closeable {
         if (factory == null) {
             factory = ContextFactory.getGlobal();
         }
-        return call(factory, cx -> callable.call(cx, scope, thisObj, args));
+        return call(factory, new ContextAction<Object>() {
+            @Override
+            public Object run(Context cx) {
+                return callable.call(cx, scope, thisObj, args);
+            }
+        });
     }
 
     /** The method implements {@link ContextFactory#call(ContextAction)} logic. */

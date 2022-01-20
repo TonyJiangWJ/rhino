@@ -113,7 +113,12 @@ public class InterfaceAdapter
                          final Method method,
                          final Object[] args)
     {
-        return cf.call(cx -> invokeImpl(cx, target, topScope, thisObject, method, args));
+        return cf.call(new ContextAction<Object>() {
+            @Override
+            public Object run(Context cx) {
+                return InterfaceAdapter.this.invokeImpl(cx, target, topScope, thisObject, method, args);
+            }
+        });
     }
 
     Object invokeImpl(Context cx,

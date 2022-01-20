@@ -143,11 +143,14 @@ public class NativeJavaMap extends NativeJavaObject {
     }
 
     private static Callable symbol_iterator =
-            (Context cx, Scriptable scope, Scriptable thisObj, Object[] args) -> {
-                if (!(thisObj instanceof NativeJavaMap)) {
-                    throw ScriptRuntime.typeErrorById("msg.incompat.call", SymbolKey.ITERATOR);
+            new Callable() {
+                @Override
+                public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                    if (!(thisObj instanceof NativeJavaMap)) {
+                        throw ScriptRuntime.typeErrorById("msg.incompat.call", SymbolKey.ITERATOR);
+                    }
+                    return new NativeJavaMapIterator(scope, ((NativeJavaMap)thisObj).map);
                 }
-                return new NativeJavaMapIterator(scope, ((NativeJavaMap) thisObj).map);
             };
 
     private static final class NativeJavaMapIterator extends ES6Iterator {

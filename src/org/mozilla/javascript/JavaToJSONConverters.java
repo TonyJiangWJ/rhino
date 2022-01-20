@@ -34,19 +34,37 @@ public class JavaToJSONConverters {
     private JavaToJSONConverters() {}
 
     /** Convert Object to its toString() value. */
-    public static final UnaryOperator<Object> STRING = o -> o.toString();
+    public static final UnaryOperator<Object> STRING = new UnaryOperator<Object>() {
+        @Override
+        public Object apply(Object o) {
+            return o.toString();
+        }
+    };
 
     /** Always return undefined */
-    public static final UnaryOperator<Object> UNDEFINED = o -> Undefined.instance;
+    public static final UnaryOperator<Object> UNDEFINED = new UnaryOperator<Object>() {
+        @Override
+        public Object apply(Object o) {
+            return Undefined.instance;
+        }
+    };
 
     /** Always return an empty object */
-    public static final UnaryOperator<Object> EMPTY_OBJECT = o -> Collections.EMPTY_MAP;
+    public static final UnaryOperator<Object> EMPTY_OBJECT = new UnaryOperator<Object>() {
+        @Override
+        public Object apply(Object o) {
+            return Collections.EMPTY_MAP;
+        }
+    };
 
     /** Throw a TypeError naming the class that could not be converted */
     public static final UnaryOperator<Object> THROW_TYPE_ERROR =
-            o -> {
-                throw ScriptRuntime.typeErrorById(
-                        "msg.json.cant.serialize", o.getClass().getName());
+            new UnaryOperator<Object>() {
+                @Override
+                public Object apply(Object o) {
+                    throw ScriptRuntime.typeErrorById(
+                            "msg.json.cant.serialize", o.getClass().getName());
+                }
             };
 
     /**
@@ -56,31 +74,34 @@ public class JavaToJSONConverters {
      * called from other converters to provide an alternate value on a returned null.
      */
     public static final UnaryOperator<Object> BEAN =
-            value -> {
-                BeanInfo beanInfo;
-                try {
-                    beanInfo = Introspector.getBeanInfo(value.getClass(), Object.class);
-                } catch (IntrospectionException e) {
-                    return null;
-                }
-                LinkedHashMap<String, Object> properties = new LinkedHashMap<String, Object>();
-                for (PropertyDescriptor descriptor : beanInfo.getPropertyDescriptors()) {
-                    if (descriptor.getReadMethod() == null) continue;
-                    Object propValue;
+            new UnaryOperator<Object>() {
+                @Override
+                public Object apply(Object value) {
+                    BeanInfo beanInfo;
                     try {
-                        propValue = descriptor.getReadMethod().invoke(value);
-                    } catch (Exception e) {
-                        continue;
+                        beanInfo = Introspector.getBeanInfo(value.getClass(), Object.class);
+                    } catch (IntrospectionException e) {
+                        return null;
                     }
-                    properties.put(descriptor.getName(), propValue);
+                    LinkedHashMap<String, Object> properties = new LinkedHashMap<String, Object>();
+                    for (PropertyDescriptor descriptor : beanInfo.getPropertyDescriptors()) {
+                        if (descriptor.getReadMethod() == null) continue;
+                        Object propValue;
+                        try {
+                            propValue = descriptor.getReadMethod().invoke(value);
+                        } catch (Exception e) {
+                            continue;
+                        }
+                        properties.put(descriptor.getName(), propValue);
+                    }
+
+                    if (properties.size() == 0) return null;
+
+                    LinkedHashMap<String, Object> obj = new LinkedHashMap<String, Object>();
+                    BeanDescriptor beanDescriptor = beanInfo.getBeanDescriptor();
+                    obj.put("beanClass", beanDescriptor.getBeanClass().getName());
+                    obj.put("properties", properties);
+                    return obj;
                 }
-
-                if (properties.size() == 0) return null;
-
-                LinkedHashMap<String, Object> obj = new LinkedHashMap<String, Object>();
-                BeanDescriptor beanDescriptor = beanInfo.getBeanDescriptor();
-                obj.put("beanClass", beanDescriptor.getBeanClass().getName());
-                obj.put("properties", properties);
-                return obj;
             };
 }

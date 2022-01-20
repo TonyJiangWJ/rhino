@@ -7,6 +7,7 @@ package org.mozilla.javascript.optimizer;
 import org.mozilla.javascript.ArrowFunction;
 import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.ContextAction;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.ES6Generator;
 import org.mozilla.javascript.Function;
@@ -203,17 +204,20 @@ public final class OptRuntime extends ScriptRuntime {
     public static void main(final Script script, final String[] args) {
         ContextFactory.getGlobal()
                 .call(
-                        cx -> {
-                            ScriptableObject global = getGlobal(cx);
+                        new ContextAction<Object>() {
+                            @Override
+                            public Object run(Context cx) {
+                                ScriptableObject global = getGlobal(cx);
 
-                            // get the command line arguments and define "arguments"
-                            // array in the top-level object
-                            Object[] argsCopy = new Object[args.length];
-                            System.arraycopy(args, 0, argsCopy, 0, args.length);
-                            Scriptable argsObj = cx.newArray(global, argsCopy);
-                            global.defineProperty("arguments", argsObj, ScriptableObject.DONTENUM);
-                            script.exec(cx, global);
-                            return null;
+                                // get the command line arguments and define "arguments"
+                                // array in the top-level object
+                                Object[] argsCopy = new Object[args.length];
+                                System.arraycopy(args, 0, argsCopy, 0, args.length);
+                                Scriptable argsObj = cx.newArray(global, argsCopy);
+                                global.defineProperty("arguments", argsObj, ScriptableObject.DONTENUM);
+                                script.exec(cx, global);
+                                return null;
+                            }
                         });
     }
 

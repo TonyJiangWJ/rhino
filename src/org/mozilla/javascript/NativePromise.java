@@ -28,24 +28,50 @@ public class NativePromise extends ScriptableObject {
     private ArrayList<Reaction> rejectReactions = new ArrayList<>();
 
     public static void init(Context cx, Scriptable scope, boolean sealed) {
-        LambdaConstructor constructor =
+        final LambdaConstructor constructor =
                 new LambdaConstructor(
                         scope,
                         "Promise",
                         1,
                         LambdaConstructor.CONSTRUCTOR_NEW,
-                        NativePromise::constructor);
+                        new Constructable() {
+                            @Override
+                            public Scriptable construct(Context cx, Scriptable scope, Object[] args) {
+                                return NativePromise.constructor(cx, scope, args);
+                            }
+                        }
+                );
         constructor.setStandardPropertyAttributes(DONTENUM | READONLY);
         constructor.setPrototypePropertyAttributes(DONTENUM | READONLY | PERMANENT);
 
         constructor.defineConstructorMethod(
-                scope, "resolve", 1, NativePromise::resolve, DONTENUM, DONTENUM | READONLY);
+                scope, "resolve", 1, new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                        return NativePromise.resolve(cx, scope, thisObj, args);
+                    }
+                }, DONTENUM, DONTENUM | READONLY);
         constructor.defineConstructorMethod(
-                scope, "reject", 1, NativePromise::reject, DONTENUM, DONTENUM | READONLY);
+                scope, "reject", 1, new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                        return NativePromise.reject(cx, scope, thisObj, args);
+                    }
+                }, DONTENUM, DONTENUM | READONLY);
         constructor.defineConstructorMethod(
-                scope, "all", 1, NativePromise::all, DONTENUM, DONTENUM | READONLY);
+                scope, "all", 1,  new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                        return NativePromise.all(cx, scope, thisObj, args);
+                    }
+                }, DONTENUM, DONTENUM | READONLY);
         constructor.defineConstructorMethod(
-                scope, "race", 1, NativePromise::race, DONTENUM, DONTENUM | READONLY);
+                scope, "race", 1,  new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                        return NativePromise.race(cx, scope, thisObj, args);
+                    }
+                }, DONTENUM, DONTENUM | READONLY);
 
         ScriptableObject speciesDescriptor = (ScriptableObject) cx.newObject(scope);
         ScriptableObject.putProperty(speciesDescriptor, "enumerable", false);
@@ -57,29 +83,45 @@ public class NativePromise extends ScriptableObject {
                         scope,
                         "get [Symbol.species]",
                         0,
-                        (Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) ->
-                                constructor));
+                        new Callable() {
+                            @Override
+                            public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                                return constructor;
+                            }
+                        }));
         constructor.defineOwnProperty(cx, SymbolKey.SPECIES, speciesDescriptor, false);
 
         constructor.definePrototypeMethod(
                 scope,
                 "then",
                 2,
-                (Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) -> {
-                    NativePromise self =
-                            LambdaConstructor.convertThisObject(thisObj, NativePromise.class);
-                    return self.then(lcx, lscope, constructor, args);
+                new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                        NativePromise self =
+                                LambdaConstructor.convertThisObject(thisObj, NativePromise.class);
+                        return self.then(cx, scope, constructor, args);
+                    }
                 },
                 DONTENUM,
                 DONTENUM | READONLY);
         constructor.definePrototypeMethod(
-                scope, "catch", 1, NativePromise::doCatch, DONTENUM, DONTENUM | READONLY);
+                scope, "catch", 1, new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                        return NativePromise.doCatch(cx, scope, thisObj, args);
+                    }
+                }, DONTENUM, DONTENUM | READONLY);
         constructor.definePrototypeMethod(
                 scope,
                 "finally",
                 1,
-                (Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) ->
-                        doFinally(lcx, lscope, thisObj, constructor, args),
+                new Callable() {
+                    @Override
+                    public Object call(Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) {
+                        return doFinally(lcx, lscope, thisObj, constructor, args);
+                    }
+                },
                 DONTENUM,
                 DONTENUM | READONLY);
 
@@ -282,7 +324,7 @@ public class NativePromise extends ScriptableObject {
 
     // Promise.prototype.then
     private Object then(
-            Context cx, Scriptable scope, LambdaConstructor defaultConstructor, Object[] args) {
+            final Context cx, final Scriptable scope, LambdaConstructor defaultConstructor, Object[] args) {
         Constructable constructable =
                 AbstractEcmaObjectOperations.speciesConstructor(cx, this, defaultConstructor);
         Capability capability = new Capability(cx, scope, constructable);
@@ -296,20 +338,30 @@ public class NativePromise extends ScriptableObject {
             onRejected = (Callable) args[1];
         }
 
-        Reaction fulfillReaction = new Reaction(capability, ReactionType.FULFILL, onFulfilled);
-        Reaction rejectReaction = new Reaction(capability, ReactionType.REJECT, onRejected);
+        final Reaction fulfillReaction = new Reaction(capability, ReactionType.FULFILL, onFulfilled);
+        final Reaction rejectReaction = new Reaction(capability, ReactionType.REJECT, onRejected);
 
         if (state == State.PENDING) {
             fulfillReactions.add(fulfillReaction);
             rejectReactions.add(rejectReaction);
         } else if (state == State.FULFILLED) {
-            cx.enqueueMicrotask(() -> fulfillReaction.invoke(cx, scope, result));
+            cx.enqueueMicrotask(new Runnable() {
+                @Override
+                public void run() {
+                    fulfillReaction.invoke(cx, scope, result);
+                }
+            });
         } else {
             assert (state == State.REJECTED);
             if (!handled) {
                 cx.getUnhandledPromiseTracker().promiseHandled(this);
             }
-            cx.enqueueMicrotask(() -> rejectReaction.invoke(cx, scope, result));
+            cx.enqueueMicrotask(new Runnable() {
+                @Override
+                public void run() {
+                    rejectReaction.invoke(cx, scope, result);
+                }
+            });
         }
         handled = true;
         return capability.promise;
@@ -355,69 +407,82 @@ public class NativePromise extends ScriptableObject {
 
     // Abstract "Then Finally Function"
     private static Callable makeThenFinally(
-            Scriptable scope, Object constructor, Callable onFinally) {
+            final Scriptable scope, final Object constructor, final Callable onFinally) {
         return new LambdaFunction(
                 scope,
                 1,
-                (Context cx, Scriptable ls, Scriptable thisObj, Object[] args) -> {
-                    Object value = args.length > 0 ? args[0] : Undefined.instance;
-                    LambdaFunction valueThunk =
-                            new LambdaFunction(
-                                    scope,
-                                    0,
-                                    (Context vc, Scriptable vs, Scriptable vt, Object[] va) ->
-                                            value);
-                    Object result =
-                            onFinally.call(
-                                    cx,
-                                    ls,
-                                    Undefined.SCRIPTABLE_UNDEFINED,
-                                    ScriptRuntime.emptyArgs);
-                    Object promise = resolveInternal(cx, scope, constructor, result);
-                    Callable thenFunc =
-                            ScriptRuntime.getPropFunctionAndThis(promise, "then", cx, scope);
-                    return thenFunc.call(
-                            cx,
-                            scope,
-                            ScriptRuntime.lastStoredScriptable(cx),
-                            new Object[] {valueThunk});
+                new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable ls, Scriptable thisObj, Object[] args) {
+                        final Object value = args.length > 0 ? args[0] : Undefined.instance;
+                        LambdaFunction valueThunk =
+                                new LambdaFunction(
+                                        scope,
+                                        0,
+                                        new Callable() {
+                                            @Override
+                                            public Object call(Context vc, Scriptable vs, Scriptable vt, Object[] va) {
+                                                return value;
+                                            }
+                                        });
+                        Object result =
+                                onFinally.call(
+                                        cx,
+                                        ls,
+                                        Undefined.SCRIPTABLE_UNDEFINED,
+                                        ScriptRuntime.emptyArgs);
+                        Object promise = resolveInternal(cx, scope, constructor, result);
+                        Callable thenFunc =
+                                ScriptRuntime.getPropFunctionAndThis(promise, "then", cx, scope);
+                        return thenFunc.call(
+                                cx,
+                                scope,
+                                ScriptRuntime.lastStoredScriptable(cx),
+                                new Object[]{valueThunk});
+                    }
                 });
     }
 
     // Abstract "Catch Finally Thrower"
     private static Callable makeCatchFinally(
-            Scriptable scope, Object constructor, Callable onFinally) {
+            final Scriptable scope, final Object constructor, final Callable onFinally) {
         return new LambdaFunction(
                 scope,
                 1,
-                (Context cx, Scriptable ls, Scriptable thisObj, Object[] args) -> {
-                    Object reason = args.length > 0 ? args[0] : Undefined.instance;
-                    LambdaFunction reasonThrower =
-                            new LambdaFunction(
-                                    scope,
-                                    0,
-                                    (Context vc, Scriptable vs, Scriptable vt, Object[] va) -> {
-                                        throw new JavaScriptException(reason, null, 0);
-                                    });
-                    Object result =
-                            onFinally.call(
-                                    cx,
-                                    ls,
-                                    Undefined.SCRIPTABLE_UNDEFINED,
-                                    ScriptRuntime.emptyArgs);
-                    Object promise = resolveInternal(cx, scope, constructor, result);
-                    Callable thenFunc =
-                            ScriptRuntime.getPropFunctionAndThis(promise, "then", cx, scope);
-                    return thenFunc.call(
-                            cx,
-                            scope,
-                            ScriptRuntime.lastStoredScriptable(cx),
-                            new Object[] {reasonThrower});
+                new Callable() {
+                    @Override
+                    public Object call(Context cx, Scriptable ls, Scriptable thisObj, Object[] args) {
+                        final Object reason = args.length > 0 ? args[0] : Undefined.instance;
+                        LambdaFunction reasonThrower =
+                                new LambdaFunction(
+                                        scope,
+                                        0,
+                                        new Callable() {
+                                            @Override
+                                            public Object call(Context vc, Scriptable vs, Scriptable vt, Object[] va) {
+                                                throw new JavaScriptException(reason, null, 0);
+                                            }
+                                        });
+                        Object result =
+                                onFinally.call(
+                                        cx,
+                                        ls,
+                                        Undefined.SCRIPTABLE_UNDEFINED,
+                                        ScriptRuntime.emptyArgs);
+                        Object promise = resolveInternal(cx, scope, constructor, result);
+                        Callable thenFunc =
+                                ScriptRuntime.getPropFunctionAndThis(promise, "then", cx, scope);
+                        return thenFunc.call(
+                                cx,
+                                scope,
+                                ScriptRuntime.lastStoredScriptable(cx),
+                                new Object[]{reasonThrower});
+                    }
                 });
     }
 
     // Abstract operation to fulfill a promise
-    private Object fulfillPromise(Context cx, Scriptable scope, Object value) {
+    private Object fulfillPromise(final Context cx, final Scriptable scope, final Object value) {
         assert (state == State.PENDING);
         result = value;
         ArrayList<Reaction> reactions = fulfillReactions;
@@ -426,14 +491,19 @@ public class NativePromise extends ScriptableObject {
             rejectReactions = new ArrayList<>();
         }
         state = State.FULFILLED;
-        for (Reaction r : reactions) {
-            cx.enqueueMicrotask(() -> r.invoke(cx, scope, value));
+        for (final Reaction r : reactions) {
+            cx.enqueueMicrotask(new Runnable() {
+                @Override
+                public void run() {
+                    r.invoke(cx, scope, value);
+                }
+            });
         }
         return Undefined.instance;
     }
 
     // Abstract operation to reject a promise.
-    private Object rejectPromise(Context cx, Scriptable scope, Object reason) {
+    private Object rejectPromise(final Context cx, final Scriptable scope, final Object reason) {
         assert (state == State.PENDING);
         result = reason;
         ArrayList<Reaction> reactions = rejectReactions;
@@ -443,8 +513,13 @@ public class NativePromise extends ScriptableObject {
         }
         state = State.REJECTED;
         cx.getUnhandledPromiseTracker().promiseRejected(this);
-        for (Reaction r : reactions) {
-            cx.enqueueMicrotask(() -> r.invoke(cx, scope, reason));
+        for (final Reaction r : reactions) {
+            cx.enqueueMicrotask(new Runnable() {
+                @Override
+                public void run() {
+                    r.invoke(cx, scope, reason);
+                }
+            });
         }
         return Undefined.instance;
     }
@@ -517,28 +592,36 @@ public class NativePromise extends ScriptableObject {
         LambdaFunction resolve;
         LambdaFunction reject;
 
-        ResolvingFunctions(Scriptable topScope, NativePromise promise) {
+        ResolvingFunctions(Scriptable topScope, final NativePromise promise) {
             resolve =
                     new LambdaFunction(
                             topScope,
                             1,
-                            (Context cx, Scriptable scope, Scriptable thisObj, Object[] args) ->
-                                    resolve(
+                            new Callable() {
+                                @Override
+                                public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                                    return ResolvingFunctions.this.resolve(
                                             cx,
                                             scope,
                                             promise,
-                                            (args.length > 0 ? args[0] : Undefined.instance)));
+                                            (args.length > 0 ? args[0] : Undefined.instance));
+                                }
+                            });
             resolve.setStandardPropertyAttributes(DONTENUM | READONLY);
             reject =
                     new LambdaFunction(
                             topScope,
                             1,
-                            (Context cx, Scriptable scope, Scriptable thisObj, Object[] args) ->
-                                    reject(
+                            new Callable() {
+                                @Override
+                                public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                                    return ResolvingFunctions.this.reject(
                                             cx,
                                             scope,
                                             promise,
-                                            (args.length > 0 ? args[0] : Undefined.instance)));
+                                            (args.length > 0 ? args[0] : Undefined.instance));
+                                }
+                            });
             reject.setStandardPropertyAttributes(DONTENUM | READONLY);
         }
 
@@ -551,7 +634,7 @@ public class NativePromise extends ScriptableObject {
         }
 
         private Object resolve(
-                Context cx, Scriptable scope, NativePromise promise, Object resolution) {
+                final Context cx, final Scriptable scope, final NativePromise promise, final Object resolution) {
             if (alreadyResolved) {
                 return Undefined.instance;
             }
@@ -572,13 +655,18 @@ public class NativePromise extends ScriptableObject {
             }
 
             Scriptable sresolution = ScriptableObject.ensureScriptable(resolution);
-            Object thenObj = ScriptableObject.getProperty(sresolution, "then");
+            final Object thenObj = ScriptableObject.getProperty(sresolution, "then");
             if (!(thenObj instanceof Callable)) {
                 return promise.fulfillPromise(cx, scope, resolution);
             }
 
             cx.enqueueMicrotask(
-                    () -> promise.callThenable(cx, scope, resolution, (Callable) thenObj));
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            promise.callThenable(cx, scope, resolution, (Callable)thenObj);
+                        }
+                    });
             return Undefined.instance;
         }
     }
@@ -649,8 +737,12 @@ public class NativePromise extends ScriptableObject {
                     new LambdaFunction(
                             topScope,
                             2,
-                            (Context cx, Scriptable scope, Scriptable thisObj, Object[] args) ->
-                                    executor(args));
+                            new Callable() {
+                                @Override
+                                public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                                    return Capability.this.executor(args);
+                                }
+                            });
             executorFunc.setStandardPropertyAttributes(DONTENUM | READONLY);
 
             promise = promiseConstructor.construct(topCx, topScope, new Object[] {executorFunc});
@@ -740,17 +832,21 @@ public class NativePromise extends ScriptableObject {
                         resolve.call(topCx, topScope, storedThis, new Object[] {nextVal});
 
                 // Create a resolution func that will stash its result in the right place
-                PromiseElementResolver eltResolver = new PromiseElementResolver(index);
+                final PromiseElementResolver eltResolver = new PromiseElementResolver(index);
                 LambdaFunction resolveFunc =
                         new LambdaFunction(
                                 topScope,
                                 1,
-                                (Context cx, Scriptable scope, Scriptable thisObj, Object[] args) ->
-                                        eltResolver.resolve(
+                                new Callable() {
+                                    @Override
+                                    public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                                        return eltResolver.resolve(
                                                 cx,
                                                 scope,
                                                 (args.length > 0 ? args[0] : Undefined.instance),
-                                                this));
+                                                PromiseAllResolver.this);
+                                    }
+                                });
                 resolveFunc.setStandardPropertyAttributes(DONTENUM | READONLY);
                 remainingElements++;
 

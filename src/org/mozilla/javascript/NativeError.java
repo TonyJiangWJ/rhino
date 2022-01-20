@@ -7,6 +7,8 @@
 package org.mozilla.javascript;
 
 import java.io.Serializable;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * The class of error objects
@@ -76,18 +78,37 @@ final class NativeError extends IdScriptableObject {
         // This is running on the global "Error" object. Associate an object there that can store
         // default stack trace, etc.
         // This prevents us from having to add two additional fields to every Error object.
-        ProtoProps protoProps = new ProtoProps();
+        final ProtoProps protoProps = new ProtoProps();
         associateValue(ProtoProps.KEY, protoProps);
-
         ctor.defineProperty(
                 "stackTraceLimit",
-                protoProps::getStackTraceLimit,
-                protoProps::setStackTraceLimit,
+                new Supplier<Object>() {
+                    @Override
+                    public Object get() {
+                        return protoProps.getPrepareStackTrace();
+                    }
+                },
+                new Consumer<Object>() {
+                    @Override
+                    public void accept(Object o) {
+                        protoProps.setPrepareStackTrace(o);
+                    }
+                },
                 0);
         ctor.defineProperty(
                 "prepareStackTrace",
-                protoProps::getPrepareStackTrace,
-                protoProps::setPrepareStackTrace,
+                new Supplier<Object>() {
+                    @Override
+                    public Object get() {
+                        return protoProps.getPrepareStackTrace();
+                    }
+                },
+                new Consumer<Object>() {
+                    @Override
+                    public void accept(Object o) {
+                        protoProps.setPrepareStackTrace(o);
+                    }
+                },
                 0);
 
         super.fillConstructorProperties(ctor);
@@ -162,7 +183,17 @@ final class NativeError extends IdScriptableObject {
         // overwritable like an ordinary property. Hence this setup with
         // the getter and setter below.
         if (stackProvider == null) {
-            defineProperty("stack", this::getStackDelegated, this::setStackDelegated, DONTENUM);
+            defineProperty("stack", new Supplier<Object>() {
+                @Override
+                public Object get() {
+                    return getStackDelegated();
+                }
+            }, new Consumer<Object>() {
+                @Override
+                public void accept(Object o) {
+                    setStackDelegated(o);
+                }
+            }, DONTENUM);
         }
         stackProvider = re;
     }

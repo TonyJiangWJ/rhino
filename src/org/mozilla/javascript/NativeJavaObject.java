@@ -893,15 +893,18 @@ public class NativeJavaObject implements Scriptable, SymbolScriptable, Wrapper, 
     }
 
     private static Callable symbol_iterator =
-            (Context cx, Scriptable scope, Scriptable thisObj, Object[] args) -> {
-                if (!(thisObj instanceof NativeJavaObject)) {
-                    throw ScriptRuntime.typeErrorById("msg.incompat.call", SymbolKey.ITERATOR);
+            new Callable() {
+                @Override
+                public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                    if (!(thisObj instanceof NativeJavaObject)) {
+                        throw ScriptRuntime.typeErrorById("msg.incompat.call", SymbolKey.ITERATOR);
+                    }
+                    Object javaObject = ((NativeJavaObject)thisObj).javaObject;
+                    if (!(javaObject instanceof Iterable)) {
+                        throw ScriptRuntime.typeErrorById("msg.incompat.call", SymbolKey.ITERATOR);
+                    }
+                    return new JavaIterableIterator(scope, (Iterable)javaObject);
                 }
-                Object javaObject = ((NativeJavaObject) thisObj).javaObject;
-                if (!(javaObject instanceof Iterable)) {
-                    throw ScriptRuntime.typeErrorById("msg.incompat.call", SymbolKey.ITERATOR);
-                }
-                return new JavaIterableIterator(scope, (Iterable) javaObject);
             };
 
     private static final class JavaIterableIterator extends ES6Iterator {

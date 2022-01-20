@@ -212,7 +212,7 @@ public final class Interpreter extends Icode implements Evaluator {
         }
 
         @Override
-        public boolean equals(Object other) {
+        public boolean equals(final Object other) {
             // Overridden for semantic equality comparison. These objects
             // are typically exposed as NativeContinuation.implementation,
             // comparing them allows establishing whether the continuations
@@ -230,9 +230,12 @@ public final class Interpreter extends Icode implements Evaluator {
                     final Scriptable top = ScriptableObject.getTopLevelScope(scope);
                     return ((Boolean)
                                     ScriptRuntime.doTopCall(
-                                            (Callable)
-                                                    (c, scope, thisObj, args) ->
-                                                            equalsInTopScope(other),
+                                            new Callable() {
+                                                @Override
+                                                public Object call(Context c, Scriptable scope, Scriptable thisObj, Object[] args) {
+                                                    return CallFrame.this.equalsInTopScope(other);
+                                                }
+                                            },
                                             cx,
                                             top,
                                             top,
@@ -244,6 +247,15 @@ public final class Interpreter extends Icode implements Evaluator {
                 }
             }
             return false;
+        }
+
+        private Boolean equalsInTopScope(final Object other) {
+            return EqualObjectGraphs.withThreadLocal(new java.util.function.Function<EqualObjectGraphs, Boolean>() {
+                @Override
+                public Boolean apply(EqualObjectGraphs eq) {
+                    return CallFrame.equals(CallFrame.this, (CallFrame)other, eq);
+                }
+            });
         }
 
         @Override
@@ -260,10 +272,6 @@ public final class Interpreter extends Icode implements Evaluator {
                 f = f.parentFrame;
             } while (f != null && depth++ < 8);
             return h;
-        }
-
-        private Boolean equalsInTopScope(Object other) {
-            return EqualObjectGraphs.withThreadLocal(eq -> equals(this, (CallFrame) other, eq));
         }
 
         private boolean isStrictTopFrame() {

@@ -2,6 +2,8 @@ package org.mozilla.javascript.tools.shell;
 
 import java.util.HashMap;
 import java.util.PriorityQueue;
+
+import org.mozilla.javascript.Callable;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.LambdaFunction;
@@ -31,16 +33,24 @@ public class Timers {
                         scope,
                         "setTimeout",
                         1,
-                        (Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) ->
-                                setTimeout(args));
+                        new Callable() {
+                            @Override
+                            public Object call(Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) {
+                                return Timers.this.setTimeout(args);
+                            }
+                        });
         ScriptableObject.defineProperty(scope, "setTimeout", setTimeout, ScriptableObject.DONTENUM);
         LambdaFunction clearTimeout =
                 new LambdaFunction(
                         scope,
                         "clearTimeout",
                         1,
-                        (Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) ->
-                                clearTimeout(args));
+                        new Callable() {
+                            @Override
+                            public Object call(Context lcx, Scriptable lscope, Scriptable thisObj, Object[] args) {
+                                return Timers.this.clearTimeout(args);
+                            }
+                        });
         ScriptableObject.defineProperty(
                 scope, "clearTimeout", clearTimeout, ScriptableObject.DONTENUM);
     }
@@ -71,8 +81,8 @@ public class Timers {
      * @return true if something was placed on the queue, and false if the queue is empty
      * @throws InterruptedException if the thread was interrupted
      */
-    private boolean executeNext(Context cx, Scriptable scope) throws InterruptedException {
-        Timeout t = timerQueue.peek();
+    private boolean executeNext(final Context cx, final Scriptable scope) throws InterruptedException {
+        final Timeout t = timerQueue.peek();
         if (t == null) {
             return false;
         }
@@ -82,7 +92,12 @@ public class Timers {
         }
         timerQueue.remove();
         timers.remove(t.id);
-        cx.enqueueMicrotask(() -> t.func.call(cx, scope, scope, t.funcArgs));
+        cx.enqueueMicrotask(new Runnable() {
+            @Override
+            public void run() {
+                t.func.call(cx, scope, scope, t.funcArgs);
+            }
+        });
         return true;
     }
 

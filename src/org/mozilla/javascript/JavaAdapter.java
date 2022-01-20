@@ -397,7 +397,7 @@ public final class JavaAdapter implements IdFunctionCall
             for (int j = 0; j < methods.length; j++) {
                 Method method = methods[j];
                 int mods = method.getModifiers();
-                if (Modifier.isStatic(mods) || Modifier.isFinal(mods) || method.isDefault()) {
+                if (Modifier.isStatic(mods) || Modifier.isFinal(mods)) {
                     continue;
                 }
                 String methodName = method.getName();
@@ -594,7 +594,12 @@ public final class JavaAdapter implements IdFunctionCall
         if (cx != null) {
             return doCall(cx, scope, thisObj, f, args, argsToWrap);
         }
-        return factory.call(cx2 -> doCall(cx2, scope, thisObj, f, args, argsToWrap));
+        return factory.call(new ContextAction<Object>() {
+            @Override
+            public Object run(Context cx2) {
+                return doCall(cx2, scope, thisObj, f, args, argsToWrap);
+            }
+        });
     }
 
     private static Object doCall(Context cx, Scriptable scope,
@@ -616,10 +621,13 @@ public final class JavaAdapter implements IdFunctionCall
 
     public static Scriptable runScript(final Script script)
     {
-        return ContextFactory.getGlobal().call(cx -> {
-            ScriptableObject global = ScriptRuntime.getGlobal(cx);
-            script.exec(cx, global);
-            return global;
+        return ContextFactory.getGlobal().call(new ContextAction<Scriptable>() {
+            @Override
+            public Scriptable run(Context cx) {
+                ScriptableObject global = ScriptRuntime.getGlobal(cx);
+                script.exec(cx, global);
+                return global;
+            }
         });
     }
 
